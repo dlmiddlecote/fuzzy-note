@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
@@ -19,12 +18,12 @@ const (
 	rootFileName = "primary.db"
 )
 
-type Time struct {
-	XMLName xml.Name `xml:"time"`
+type Text struct {
+	XMLName xml.Name
 	Year    xml.Attr `xml:"startYear,attr"`
 	Month   xml.Attr `xml:"startMonth,attr"`
 	Day     xml.Attr `xml:"startDay,attr"`
-	Content []byte   `xml:",innerxml"`
+	Content string   `xml:",any"`
 }
 
 type Node struct {
@@ -33,13 +32,6 @@ type Node struct {
 	Note    xml.Attr   `xml:"_note,attr"`
 	Nodes   []Node     `xml:",any"`
 	Attrs   []xml.Attr `xml:"-"`
-	//Time  Time
-}
-
-func (n *Node) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
-	n.Attrs = start.Attr
-	type node Node
-	return d.DecodeElement((*node)(n), &start)
 }
 
 func walk(db service.ListRepo, nodes []Node, chain []string, f func(Node) bool) {
@@ -48,7 +40,26 @@ func walk(db service.ListRepo, nodes []Node, chain []string, f func(Node) bool) 
 		n := nodes[i]
 		newChain := chain
 		if f(n) {
-			newChain = append(newChain, n.Text.Value)
+			newText := n.Text.Value
+			if len(newText) > 0 {
+				t := Text{}
+				xml.Unmarshal([]byte(newText), &t)
+				if len(t.Year.Value) > 0 {
+					fmt.Printf("BOOM %v\n", t.Content)
+					fmt.Printf("BOOM %v\n", t.Year)
+					newText = t.Content
+				}
+				//err := xml.Unmarshal([]byte(newText), &t)
+				//if err == nil || err == io.EOF {
+				//    if len(t.Year.Value) > 0 {
+				//        fmt.Printf("BOOM %v\n", t.Content)
+				//        newText = t.Content
+				//    }
+				//} else {
+				//    log.Println(err)
+				//}
+			}
+			newChain = append(newChain, newText)
 		}
 		walk(db, n.Nodes, newChain, f)
 		fullString := strings.Join(newChain, " >> ")
@@ -58,8 +69,6 @@ func walk(db service.ListRepo, nodes []Node, chain []string, f func(Node) bool) 
 			log.Fatal(err)
 			os.Exit(1)
 		}
-		fmt.Printf("TEXT: %v\n", fullString)
-		fmt.Printf("NOTE: %s\n", n.Note.Value)
 	}
 }
 
@@ -76,13 +85,11 @@ func importLines(db service.ListRepo) error {
 		return err
 	}
 
-	buf := bytes.NewBuffer(dat)
-	dec := xml.NewDecoder(buf)
-
-	var n Node
-	err = dec.Decode(&n)
+	n := Node{}
+	err = xml.Unmarshal(dat, &n)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+		return err
 	}
 
 	walk(db, []Node{n}, []string{}, func(n Node) bool {
