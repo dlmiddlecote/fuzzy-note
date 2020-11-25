@@ -493,9 +493,15 @@ func (t *Terminal) RunClient() error {
 						grpIdx, charOffset := t.getSearchGroupIdxAndOffset()
 						newGroup := []rune(t.search[grpIdx])
 
+						//fmt.Printf("      %v\n", t.search)
+						//fmt.Printf("     %v %d %d  \n", newGroup, grpIdx, charOffset)
 						// We want to insert a char into the current search group then update in place
 						newGroup = t.insertCharInPlace(newGroup, charOffset, ev.Rune())
+						fmt.Printf("   %d %v\n", grpIdx, t.search)
+						copy(t.search[grpIdx+1:], t.search[grpIdx:])
+						fmt.Printf("   %d %v\n", grpIdx, t.search)
 						t.search[grpIdx] = newGroup
+						//fmt.Printf("      %v\n", t.search)
 					} else {
 						var newTerm []rune
 						newTerm = append(newTerm, ev.Rune())
